@@ -33,6 +33,14 @@
 #
 
 # Global Vars:
+
+# debug is true when we are debugging
+typeset debug=${LD_DEBUG:-false}
+
+# trace can be set to "set -x" for debugging as well
+typeset trace=${LD_TRACE:-""}
+
+#path to real ld command
 LD=/usr/bin/ld
 
 # Index of next argument to add
@@ -40,7 +48,6 @@ typeset -i new_arg_index=0
 
 # the path of the loadmap
 load_map=""
-delete_load_map=false
 
 # default file created by ld but is changed by -o option
 a_out=a.out
@@ -91,6 +98,7 @@ function make_log
 function process_libpath_option
 {
     typeset path ofs
+    $trace
 
     ofs="$IFS"
     IFS=:
@@ -112,6 +120,7 @@ function process_libpath_option
 function process_loadmap_option
 {
     typeset junk path
+    $trace
 
     echo "$1" | IFS=: read junk path
     load_map="$path"
@@ -121,6 +130,8 @@ function process_loadmap_option
 # Called with no args
 function call_ld
 {
+    $trace
+
     # If the command line does not already create a load map, we add
     # that argument and also set a trap so it is deleted on exit.
     if [[ -z "${load_map}" ]] ; then
@@ -128,8 +139,11 @@ function call_ld
 
 	# For debugging, you will want to uncomment the rm and comment
 	# out the trap so you can see the intermediate results.
-	# rm -f /tmp/ld.map.*
-	trap "rm -f ${load_map}" EXIT
+	if [[ "${debug}" = true ]] ; then
+	    rm -f /tmp/ld.map.*
+	else
+	    trap 'trap "rm -f ${load_map}" EXIT' EXIT
+	fi
 
 	add_arg "-bl:${load_map}"
     fi
@@ -148,8 +162,9 @@ function process_loadmap
 {
     typeset dum0 dum1 path tmp
     typeset -i lib_index=0
+    $trace
 
-    fgrep '(ld): lib ' "${load_map}" | while read dum0 dum1 path ; do
+    fgrep '(ld): lib ' "${load_map}" 2> /dev/tty | while read dum0 dum1 path ; do
 	lib_path_array[${lib_index}]="${path}"
 	(( lib_index+=1 ))
     done
@@ -164,6 +179,7 @@ function remap_library
     typeset full_lib="${arg#\#!}"    # remove #! in front
     typeset lib="${full_lib##*/}"    # libc(dog.o)
     typeset base="${lib%%\(*}"
+    $trace
 
     # echo "arg=${arg}"   1>&2
     for path in "${lib_path_array[@]}" ; do
@@ -196,6 +212,7 @@ function process_import_file
     typeset import=$( echo *.imp )
     typeset skip_whole_lib=false
     typeset l
+    $trace
 
     while read l ; do		# for each line
 	case "$l" in
@@ -230,6 +247,7 @@ function process_shell_line
 {
     typeset result=""
     typeset l
+    $trace
 
     echo "${1}" | tr ' ' '\n' | while read l ; do
 	case "${l}" in
@@ -268,6 +286,7 @@ function process_shell_file
 {
     typeset script=$( echo *.sh )
     typeset l
+    $trace
 
     while read l ; do		# for each line
 	case "$l" in
@@ -288,6 +307,8 @@ function process_shell_file
 # Called with no args
 function call_rtl_enable
 {
+    $trace
+
     # Overview:
     #  1: Make a temp directory
 
@@ -319,9 +340,11 @@ function call_rtl_enable
 
 	# For debugging, you will want to uncomment the rm and comment
 	# out the trap so you can see the intermediate results.
-	# rm -rf /tmp/ld.dir.*
-        trap "rm -rf ${tmp_dir}" EXIT
-
+	if [[ "${debug}" = true ]] ; then
+	    rm -rf /tmp/ld.dir.*
+	else
+            trap "rm -rf ${tmp_dir}" EXIT
+	fi
 	mkdir "${tmp_dir}"		# step 1
 	cp "${a_out}" "${tmp_dir}"	# step 2
 	(				# another subshell to save cwd
@@ -358,7 +381,6 @@ make_log "Starting at $( date )"
 make_log "Called with: $@"
 trap "make_log Done" EXIT
 
-(
 # Process each argument to ld
 for arg in "$@" ; do
     if [[ "${saw_o_option}" = true ]] ; then
@@ -504,4 +526,4 @@ process_loadmap
 # So, now we pull apart what ld just created and put it back together
 # better
 call_rtl_enable
-)
+

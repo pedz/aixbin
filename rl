@@ -46,6 +46,13 @@
 # Note that much is stolen from my "ld" command.
 
 # Global args
+
+# debug is true when we are debugging
+typeset debug=false
+
+# trace can be set to "set -x" for debugging as well
+typeset trace=""
+
 # Record initial PID so logging is consistent.
 typeset my_pid=$$
 
@@ -73,7 +80,8 @@ function make_log
 function scan_import_file
 {
     typeset import=$( echo *.imp )
-    
+    $trace
+
     if egrep -q '^#!.*rtllib' "${import}" ; then
 	saw_rtllib=true
     fi
@@ -95,6 +103,7 @@ function process_libpath
     typeset path
     typeset ofs="$IFS"
     typeset result=""
+    $trace
 
     IFS=:
     for path in $1 ; do
@@ -125,6 +134,7 @@ function process_shell_line
 {
     typeset result=""
     typeset l
+    $trace
 
     echo "${1}" | tr ' ' '\n' | while read l ; do
 	case "${l}" in
@@ -155,6 +165,7 @@ function process_shell_file
 {
     typeset script=$( echo *.sh )
     typeset l
+    $trace
 
     while read l ; do		# for each line
 	case "$l" in
@@ -185,6 +196,7 @@ function remap_library
     typeset ofs="$IFS"
     typeset oh_my_god=false
     typeset path
+    $trace
 
     make_log "remap_library called with ${1}"
     make_log "remap_library libpath=${libpath}"
@@ -224,6 +236,7 @@ function modify_import_file
     typeset import=$( echo *.imp )
     typeset skip_whole_lib=false
     typeset l
+    $trace
 
     while read l ; do		# for each line
 	case "$l" in
@@ -255,6 +268,8 @@ function modify_import_file
 # Called with no args
 function call_rtl_enable
 {
+    $trace
+
     # Overview:
     #  1: Make a temp directory
 
@@ -296,8 +311,11 @@ function call_rtl_enable
 
 	# For debugging, you will want to uncomment the rm and comment
 	# out the trap so you can see the intermediate results.
-	# rm -rf /tmp/rl.dir.*
-        trap "rm -rf ${tmp_dir}" EXIT
+	if [[ "${debug}" = true ]] ; then
+	    rm -rf /tmp/rl.dir.*
+	else
+            trap "rm -rf ${tmp_dir}" EXIT
+	fi
 
 	mkdir "${tmp_dir}"		# step 1
 	cp "${a_out}" "${tmp_dir}"	# step 2
@@ -335,6 +353,13 @@ function call_rtl_enable
 }
 
 make_log "Enter with $@"
+
+if [[ "$1" = "-x" ]] ; then
+    debug=true
+    trace="set -x"
+    $trace
+    shift
+fi
 
 if [[ $# -ne 1 ]] ; then
     echo "Usage: $( basename $0 ) <file>" 1>&2
