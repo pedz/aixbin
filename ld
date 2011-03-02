@@ -130,6 +130,7 @@ function process_loadmap_option
 # Called with no args
 function call_ld
 {
+    typeset rc
     $trace
 
     # If the command line does not already create a load map, we add
@@ -150,11 +151,12 @@ function call_ld
 
     make_log "Calling ld with: ${new_args[@]}" 
     # Call ld and just leave if it fails.
-    if ! "${LD}" "${new_args[@]}" ; then
-	exit $?
+    "${LD}" "${new_args[@]}"
+    rc=$?
+    if [[ "${rc}" -ne 0 ]]; then
+	make_log "${LD} returned with ${rc}"
+	exit "${rc}"
     fi
-
-    
 }
 
 # Called with no args
