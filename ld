@@ -78,6 +78,10 @@ typeset saw_rtllib_option=false
 typeset saw_static_option=false
 typeset saw_symbolic_option=false
 
+# This is essentially a constant right now.
+typeset maxdata=0x80000000
+typeset bigtoc=0
+
 # Functions
 
 # Called with one arg: the argument to add to the list of arguments to
@@ -94,6 +98,21 @@ function make_log
     echo "${my_pid} $@" >> /tmp/ld-log
 }
 
+function clean_path
+{
+    typeset arg=${1}/
+    typeset b=${arg%%/../*}
+    typeset l=${b%/*}
+    typeset r=${arg#*/..}
+    typeset new_arg=$l${r%/}
+
+    if [[ "$b" == "$arg" ]] ; then
+        echo "$1"
+    else
+        clean_path "$new_arg"
+    fi
+}
+
 # Called with on arg: the -blibpath:p1:p2:p3 option
 function process_libpath_option
 {
@@ -108,8 +127,7 @@ function process_libpath_option
 		;;
 
 	    *)				# default is to add -L
-		add_arg "-L"
-		add_arg "$path"
+		add_arg "-L$( clean_path "$path" )"
 		;;
 	esac
     done
@@ -148,6 +166,8 @@ function call_ld
 
 	add_arg "-bl:${load_map}"
     fi
+
+    add_arg -bmaxdata:$maxdata
 
     make_log "Calling ld with: ${new_args[@]}" 
     # Call ld and just leave if it fails.
@@ -271,6 +291,9 @@ function process_shell_line
 		fi
 		;;
 
+	    -bmaxdata:*)
+		;;
+
 # Lets not do this yet.
 # 	    -blibpath:*)
 # 		result="${result} $(process_libpath_a_second_time "${l}")"
@@ -281,6 +304,13 @@ function process_shell_line
 		;;
 	esac
     done
+
+    if [[ "${bigtoc}" -eq 1 ]] ; then
+	result="${result} -bbigtoc"
+    fi
+    result="${result} -bmaxdata:${maxdata}"
+
+    make_log "Second call to ld: ${result}"
     echo "${result}"
 }
 
@@ -408,6 +438,10 @@ for arg in "$@" ; do
 		add_arg "${arg}"
 		;;
 
+	    -L*)
+		add_arg "$( clean_path "${arg}" )"
+		;;
+
 	    -o)				# process the -o option
 		saw_o_option=true	# set flag to process it on
 		add_arg "${arg}"	# next loop
@@ -511,6 +545,14 @@ for arg in "$@" ; do
 		add_arg "${arg}"
 		;;
 
+	    -bmaxdata:*)	  # just eat this arg -- we'll add in our own
+		;;
+
+	    -bbigtoc)			# need to remember the bigtoc switch
+		bigtoc=1
+		add_arg "${arg}"
+		;;
+
 	    *)				# default is to pass on the argument
 		add_arg "${arg}"
 		;;
@@ -528,4 +570,3 @@ process_loadmap
 # So, now we pull apart what ld just created and put it back together
 # better
 call_rtl_enable
-

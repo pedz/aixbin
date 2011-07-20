@@ -96,16 +96,20 @@ function scan_import_file
     make_log "saw_rtllib=${saw_rtllib} saw_relative_libs=${saw_relative_libs}"
 }
 
-# Changes /a/b/c/d/.. to /a/b/c
+# Changes /a/b/c/../d/e/f to /a/b/d/e/f
 function clean_path
 {
-    typeset arg=$1
-    typeset new_arg=$( echo "$arg" | sed -e 's%\(.*\)/[^/]*/\.\.\(/.*\)%\1\2%' )
+    typeset arg=${1}/
+    typeset b=${arg%%/../*}
+    typeset l=${b%/*}
+    typeset r=${arg#*/..}
+    typeset new_arg=$l${r%/}
 
-    if [[ "$new_arg" != "$arg" ]] ; then
-	new_arg=$( clean_path "$new_arg" )
+    if [[ "$b" == "$arg" ]] ; then
+        echo "$1"
+    else
+        clean_path "$new_arg"
     fi
-    echo "$new_arg"
 }
 
 # called with -blibpath:... argument being passed to ld in the
@@ -124,6 +128,7 @@ function process_libpath
 		;;
 
 	    /*)			 # any path starting with / we append.
+		path="$( clean_path "${path}" )"
 		if [[ -z "${result}" ]] ; then
 		    result="${path}"
 		else
