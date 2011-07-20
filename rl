@@ -96,6 +96,18 @@ function scan_import_file
     make_log "saw_rtllib=${saw_rtllib} saw_relative_libs=${saw_relative_libs}"
 }
 
+# Changes /a/b/c/d/.. to /a/b/c
+function clean_path
+{
+    typeset arg=$1
+    typeset new_arg=$( echo "$arg" | sed -e 's%\(.*\)/[^/]*/\.\.\(/.*\)%\1\2%' )
+
+    if [[ "$new_arg" != "$arg" ]] ; then
+	new_arg=$( clean_path "$new_arg" )
+    fi
+    echo "$new_arg"
+}
+
 # called with -blibpath:... argument being passed to ld in the
 # rtl_enable generated script
 function process_libpath
