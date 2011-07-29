@@ -385,7 +385,11 @@ function call_rtl_enable
 
 	    # step 4
 	    
-	    if ! rtl_enable -s "${a_out_base}" ; then
+	    typeset X=32
+	    if [[ "${saw_64_option}" == 'true' ]] ; then
+		X=64
+	    fi
+	    if ! rtl_enable -X "${X}" -s "${a_out_base}" ; then
 		exit $?
 	    fi
 
