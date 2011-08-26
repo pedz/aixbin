@@ -100,17 +100,49 @@ function make_log
 
 function clean_path
 {
-    typeset arg=${1}/
-    typeset b=${arg%%/../*}
-    typeset l=${b%/*}
-    typeset r=${arg#*/..}
-    typeset new_arg=$l${r%/}
+    # set -x
+    # make_log "clean_path: $1"
 
-    if [[ "$b" == "$arg" ]] ; then
-        echo "$1"
-    else
-        clean_path "$new_arg"
+    # .. at the front should not get consumed by .. later on
+    # the dotdot_index is the index of the last leading dotdot
+    typeset -i arg_index=0 result_index=-1 dotdot_index=-1
+    typeset arg_array result_array
+
+    # We set IFS to / to split the path into an array
+    typeset TIFS="$IFS"
+    IFS=/
+    set -A arg_array $1
+
+    typeset -i arg_length="${#arg_array[*]}"
+    while [[ $arg_index -lt $arg_length ]] ; do
+	typeset comp="${arg_array[$arg_index]}"
+	# a dotdot eats the last component except when it would eat
+	# another dotdot
+	if [[ "$comp" == ".." && $result_index -gt $dotdot_index ]] ; then
+	    unset result_array[$result_index]
+	    let "result_index = result_index - 1"
+	else
+	    let "result_index = result_index + 1"
+	    result_array[$result_index]="$comp"
+	    if [[ "$comp" == ".." || "$comp" == "" ]] ; then
+		let "dotdot_index = dotdot_index + 1"
+	    fi
+	fi
+	let "arg_index = arg_index + 1"
+    done
+    typeset result="${result_array[*]}"
+    IFS="$TIFS"
+    if [[ "$result" = "" ]] ; then
+	# /a/.. results in "" which needs to be changed to /
+	if [[ $result_index -eq 0 ]] ; then
+	    result=/
+	# a/.. results in "" which needs to be changed to .
+	else
+	    result=.
+	fi
     fi
+    # make_log "clean_path result=$result"
+    echo "$result"
 }
 
 # Called with on arg: the -blibpath:p1:p2:p3 option
@@ -127,7 +159,7 @@ function process_libpath_option
 		;;
 
 	    *)				# default is to add -L
-		add_arg "-L$( clean_path "$path" )"
+		add_arg "-L$( clean_path "${path#-L}" )"
 		;;
 	esac
     done
@@ -265,6 +297,24 @@ function process_import_file
     mv tmp ${import}
 }
 
+function process_libpath_a_second_time
+{
+    typeset path ofs result=""
+    $trace
+
+    ofs="$IFS"
+    IFS=:
+    for path in $1 ; do
+	# Only absolute paths are allowed. Note that -blibpath will not
+	# match
+	if [[ "$path" = /* ]] ; then
+	    result="${result}:${path}"
+	fi
+    done
+    IFS="$ofs"
+    echo "-blibpath${result}"
+}
+
 function process_shell_line
 {
     typeset result=""
@@ -294,10 +344,9 @@ function process_shell_line
 	    -bmaxdata:*)
 		;;
 
-# Lets not do this yet.
-# 	    -blibpath:*)
-# 		result="${result} $(process_libpath_a_second_time "${l}")"
-# 		;;
+	    -blibpath:*)
+		result="${result} $(process_libpath_a_second_time "${l}")"
+		;;
 
 	    *)
 		result="${result} ${l}"
@@ -443,7 +492,7 @@ for arg in "$@" ; do
 		;;
 
 	    -L*)
-		add_arg "$( clean_path "${arg}" )"
+		add_arg "-L$( clean_path "${arg#-L}" )"
 		;;
 
 	    -o)				# process the -o option
