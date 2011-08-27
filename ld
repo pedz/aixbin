@@ -297,6 +297,11 @@ function process_import_file
     mv tmp ${import}
 }
 
+# This function is not used.  It turns out that at initial build time,
+# we must keep all of the libpath pieces.  This implies that we do
+# need "rl" to go back and remove the relative paths in the libpath
+# that is in the executable.  I'm leaving this function here for now
+# and just comment out the call to it.
 function process_libpath_a_second_time
 {
     typeset path ofs result=""
@@ -344,9 +349,14 @@ function process_shell_line
 	    -bmaxdata:*)
 		;;
 
-	    -blibpath:*)
-		result="${result} $(process_libpath_a_second_time "${l}")"
-		;;
+# I put this in at one point but Ruby with shared libraries does not
+# build.  The executable will not execute until it is installed which
+# means that it will not do the test and in Ruby's case it also needs
+# the full ruby to build the DOC stuff.  So... I'm commenting it out
+# for now.
+#	    -blibpath:*)
+#		result="${result} $(process_libpath_a_second_time "${l}")"
+#		;;
 
 	    *)
 		result="${result} ${l}"
