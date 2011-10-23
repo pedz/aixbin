@@ -229,6 +229,7 @@ function remap_library
 	    if [[ -z "${new_path}" ]] ; then
 		new_path="${temp}"
 	    elif [[ ! "${new_path}" -ef "${temp}" ]] ; then
+		make_log "remap_library: dup paths ${new_path} and ${temp}"
 		oh_my_god=true
 	    fi
 	fi
