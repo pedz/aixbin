@@ -115,9 +115,12 @@ function clean_path
     typeset -i arg_length="${#arg_array[*]}"
     while [[ $arg_index -lt $arg_length ]] ; do
 	typeset comp="${arg_array[$arg_index]}"
+	# eat the single dots: foo/./dog => foo/dog
+	if [[ "$comp" == "." ]] ; then
+	    true
 	# a dotdot eats the last component except when it would eat
 	# another dotdot
-	if [[ "$comp" == ".." && $result_index -gt $dotdot_index ]] ; then
+	elif [[ "$comp" == ".." && $result_index -gt $dotdot_index ]] ; then
 	    unset result_array[$result_index]
 	    let "result_index = result_index - 1"
 	else
