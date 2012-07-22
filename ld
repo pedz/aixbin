@@ -33,6 +33,7 @@
 #
 
 # Global Vars:
+LOG_PATH=/tmp/ld-$( id -u )-log
 
 # debug is true when we are debugging
 typeset debug=${LD_DEBUG:-false}
@@ -73,6 +74,7 @@ typeset saw_noautoexp_option=false
 typeset saw_nortl_option=false
 typeset saw_nortllib_option=false
 typeset saw_nosymbolic_option=false
+typeset saw_r_option=false
 typeset saw_rtl_option=false
 typeset saw_rtllib_option=false
 typeset saw_static_option=false
@@ -95,7 +97,7 @@ function add_arg
 # Called with multiple args
 function make_log
 {
-    echo "${my_pid} $@" >> /tmp/ld-log
+    echo "${my_pid} $@" >> "${LOG_PATH}"
 }
 
 function clean_path
@@ -191,7 +193,7 @@ function call_ld
 	# For debugging, you will want to uncomment the rm and comment
 	# out the trap so you can see the intermediate results.
 	if [[ "${debug}" = true ]] ; then
-	    rm -f /tmp/ld.map.*
+	    rm -rf /tmp/ld.map.* 2> /dev/null
 	else
 	    trap 'trap "rm -f ${load_map}" EXIT' EXIT
 	fi
@@ -516,6 +518,20 @@ for arg in "$@" ; do
 		add_arg "${arg}"
 		;;
 
+	    # -r (according to the documentation) is the same as erok,
+	    # noglink, nox, and nogc.  I could/should have four
+	    # variables and set each of those four to true because (as
+	    # it goes on further to say) "(Subsequent options can
+	    # override these options.)".  But I'm not (yet).  If I see
+	    # the -r, it basically says that we are not making an
+	    # executable but just doing a preliminary gathering of
+	    # object files into a bigger one.  So if I see a -r, I'm
+	    # just going to do the normal link and exit.
+	    -r)
+		saw_r_option=true
+		add_arg "${arg}"
+		;;
+
 	    -berok)
 		saw_erok_option=true
 		saw_ernotok_option=false
@@ -625,6 +641,11 @@ done
 
 # Then call ld
 call_ld
+
+if [[ "${saw_r_option}" = "true" ]] ; then
+    make_log "Exit 0 due to -r option"
+    exit 0
+fi
 
 # Prcess the map file and create a mapping between the base libraries
 # and their full path
